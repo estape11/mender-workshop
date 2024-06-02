@@ -25,6 +25,8 @@ const moment = require("moment");
 const axios = require("axios");
 const { exit } = require("process");
 const pat = require("./pat.json");
+const { Pool } = require("pg");
+const atob = require("atob");
 
 const MODULE = "Basic Webhook Server";
 const BLOCKED_LIST = [".env", ".php", ".aspx", ".txt", "..", ".git", "config"];
@@ -45,13 +47,23 @@ function LoadSettings(archivo) {
       let res = contents.split("\n");
       res.forEach((element) => {
         if (element[0] !== "#" && element !== "") {
-          let temp = element.split("=");
-          if (temp[0] === "PORT") {
-            port = parseInt(temp[1]);
-          } else if (temp[0] === "SECURE_PORT") {
-            securePort = parseInt(temp[1]);
-          } else if (temp[0] === "FORCE_SSL") {
-            if (temp[1] === "false") {
+          let keyValue = element.split("=");
+          if (keyValue[0] === "PORT") {
+            port = parseInt(keyValue[1]);
+          } else if (keyValue[0] === "SECURE_PORT") {
+            securePort = parseInt(keyValue[1]);
+          } else if (keyValue[0] === "DB_IP") {
+            addrDB = keyValue[1];
+          } else if (keyValue[0] === "DB_PORT") {
+            portDB = keyValue[1];
+          } else if (keyValue[0] === "DB_NAME") {
+            nameDB = atob(keyValue[1]);
+          } else if (keyValue[0] === "DB_USER") {
+            userDB = atob(keyValue[1]);
+          } else if (keyValue[0] === "DB_PASS") {
+            passDB = atob(keyValue[1]);
+          } else if (keyValue[0] === "FORCE_SSL") {
+            if (keyValue[1] === "false") {
               forceSSL = false;
             } else {
               forceSSL = true;
@@ -63,7 +75,7 @@ function LoadSettings(archivo) {
       result = true;
     }
   } catch (ex) {
-    Log("Error: Fail to load settings", MODULE);
+    Log(`Error: Failed to load settings > ${ex}`, MODULE);
   }
 
   if (!result) {
@@ -104,14 +116,20 @@ function LoadCertificates(envPath) {
   }
 }
 
-// Valores configurables
+// Settings
 let port = 80;
 let securePort = 443;
-let rutaPublica = `${__dirname}/public`;
 let forceSSL = true;
-let rutaEntorno = "";
+let userDB = "mender";
+let passDB = "NaN";
+let nameDB = "devices_administration";
+let addrDB = "localhost";
+let portDB = 5432;
+let envPath = "./";
+let menderURL = "https://hosted.mender.io";
+let showRequestData = false;
 
-// Carga de configuraciones
+// Load settings
 if (argv.c !== undefined) {
   LoadSettings(argv.c);
 } else if (argv.conf_file !== undefined) {
@@ -121,15 +139,35 @@ if (argv.c !== undefined) {
   process.exit(0);
 }
 
+// Database instance connection
+pgConnetion = new Pool({
+  host: addrDB,
+  user: userDB,
+  password: passDB,
+  database: nameDB,
+  port: portDB,
+});
+
+// Database test
+pgConnetion
+  .query("SELECT NOW()")
+  .then((response) => {
+    Log("Database test succesfully", MODULE);
+  })
+  .catch((err) => {
+    Log("WARNING: Connection to database failed", MODULE);
+  });
+
 // certificates HTTPS
-const certificates = LoadCertificates(rutaEntorno);
+let certificates = undefined;
 
 // Server instance
 const server = express();
 const ddos = new Ddos({ burst: 500, limit: 5000 });
 
-// Configuracion del server
+// Server configuration
 if (forceSSL === true) {
+  certificates = LoadCertificates(envPath);
   server.use(forceSsl);
 }
 
@@ -172,44 +210,175 @@ http
 
 // Read data from the webhook call
 server.post("*", function (req, res) {
-    // Read the event information
-    const payload = req.body;
-    const headers = req.headers;
+  // Read the event information
+  const payload = req.body;
+  const headers = req.headers;
 
+  if (showRequestData) {
     console.log(JSON.stringify(payload));
     console.log(JSON.stringify(headers));
+  }
 
-    if (payload.type) {
-        Log(`Received: ${payload.type}`, MODULE);
-        switch(payload.type) {
-            case "device-provisioned":
-                break;
-            case "device-decommissioned":
-                break;
-            case "device-status-changed":
-                break;
-            default:
-                Log(`WARNING: Type not recognized`, MODULE);
+  if (payload.type) {
+    Log(`New event received: ${payload.type}`, MODULE);
+    switch (payload.type) {
+      // A new accepted device event was triggered
+      case "device-provisioned":
+        let authSet = payload.data.auth_sets[payload.data.auth_sets.length - 1];
+        // Save the Mender data to the internal database
+        pgConnetion
+          .query(
+            `SELECT * FROM UpdateDevice ($1::varchar, $2::varchar, $3::varchar)`,
+            [authSet.identity_data.mac, payload.data.id, authSet.pubkey]
+          )
+          .then((responseUpdateDevice) => {
+            if (
+              responseUpdateDevice.rows &&
+              responseUpdateDevice.rows.length > 0
+            ) {
+              let successUpdatingDevice = responseUpdateDevice.rows[0].Success;
+              if (successUpdatingDevice) {
+                Log(
+                  `Device data updated internally > ${authSet.identity_data.mac}(${payload.data.id})`,
+                  MODULE
+                );
+              }
+            } else {
+              Log(`WARNING: Not a valid device > ${payload.data.id}`, MODULE);
             }
-    } else {
-        Log(`WARNING: Type not received`, MODULE);
+          })
+          .catch((err) => {
+            Log(
+              `Error: Unable to perform query to the database > ${err}`,
+              MODULE
+            );
+          });
+        break;
+      // A device was dismissed
+      case "device-decommissioned":
+        break;
+      // A status change was triggered to a device
+      case "device-status-changed":
+        // New device is connecting
+        if (payload.data.status == "pending") {
+          // Get Mender data from the device to validate it
+          axios
+            .get(`${menderURL}/api/management/v2/devauth/devices`, {
+              headers: {
+                Authorization: `Bearer ${pat.token}`,
+              },
+              params: {
+                id: payload.data.id,
+              },
+            })
+            .then((responseAuthSets) => {
+              if (responseAuthSets.data && responseAuthSets.data.length > 0) {
+                let deviceData = responseAuthSets.data[0];
+                // Get the last auth_set
+                let authSet =
+                  deviceData.auth_sets[deviceData.auth_sets.length - 1];
+
+                // Validate the device internally
+                pgConnetion
+                  .query(`SELECT * FROM IsAValidDevice ($1::varchar)`, [
+                    authSet.identity_data.mac,
+                  ])
+                  .then((responseValidDevice) => {
+                    if (
+                      responseValidDevice.rows &&
+                      responseValidDevice.rows.length > 0
+                    ) {
+                      let isAValidDevice = responseValidDevice.rows[0].Valid;
+                      if (isAValidDevice) {
+                        // Accept the device in the Mender Server
+                        axios
+                          .put(
+                            `${menderURL}/api/management/v2/devauth/devices/${payload.data.id}/auth/${authSet.id}/status`,
+                            {
+                              status: "accepted",
+                            },
+                            {
+                              headers: {
+                                Authorization: `Bearer ${pat.token}`,
+                              },
+                            }
+                          )
+                          .then((res) => {
+                            if (res.status == 204) {
+                              Log(
+                                `New device validated and accepted > ${authSet.identity_data.mac}(${payload.data.id})`,
+                                MODULE
+                              );
+                            } else {
+                              Log(
+                                `WARNING: Failed to auto-accept the device > ${payload.data.id} ${authSet.identity_data.mac}`,
+                                MODULE
+                              );
+                            }
+                          })
+                          .catch((err) => {
+                            Log(
+                              `Error: Unable to connect to Mender Server > ${err}`,
+                              MODULE
+                            );
+                          });
+                      }
+                    } else {
+                      Log(
+                        `WARNING: Not a valid device > ${authSet.identity_data.mac}`,
+                        MODULE
+                      );
+                    }
+                  })
+                  .catch((err) => {
+                    Log(
+                      `Error: Unable to perform query to the database > ${err}`,
+                      MODULE
+                    );
+                  });
+              } else {
+                Log(
+                  `WARNING: No auth_sets found for the device > ${payload.data.id}`,
+                  MODULE
+                );
+              }
+            })
+            .catch((err) => {
+              Log(`Error: Unable to connect to Mender Server > ${err}`, MODULE);
+            });
+        }
+        break;
+      default:
+        Log(`WARNING: Type not recognized`, MODULE);
     }
-    res.status(200).send("OK");
+  } else {
+    Log(`WARNING: Type not received`, MODULE);
+  }
+  res.status(200).send("OK");
 });
-  
+
 // Reject any other request
 server.get("*", function (req, res) {
-  Log(`[${getIpAddress(req)}, ${req.get("User-Agent")}] GET: Error 405`, MODULE);
+  Log(
+    `[${getIpAddress(req)}, ${req.get("User-Agent")}] GET: Error 405`,
+    MODULE
+  );
   res.status(405).send({ message: "Request not found" });
 });
 
 server.put("*", function (req, res) {
-  Log(`[${getIpAddress(req)}, ${req.get("User-Agent")}] PUT: Error 405`, MODULE);
+  Log(
+    `[${getIpAddress(req)}, ${req.get("User-Agent")}] PUT: Error 405`,
+    MODULE
+  );
   res.status(405).send({ message: "Request not found" });
 });
 
 server.patch("*", function (req, res) {
-  Log(`[${getIpAddress(req)}, ${req.get("User-Agent")}] PATCH: Error 405`, MODULE);
+  Log(
+    `[${getIpAddress(req)}, ${req.get("User-Agent")}] PATCH: Error 405`,
+    MODULE
+  );
   res.status(405).send({ message: "Request not found" });
 });
 
@@ -222,6 +391,9 @@ server.delete("*", function (req, res) {
 });
 
 server.head("*", function (req, res) {
-  Log(`[${getIpAddress(req)}, ${req.get("User-Agent")}] HEAD: Error 405`, MODULE);
+  Log(
+    `[${getIpAddress(req)}, ${req.get("User-Agent")}] HEAD: Error 405`,
+    MODULE
+  );
   res.status(405).send({ message: "Request not found" });
 });

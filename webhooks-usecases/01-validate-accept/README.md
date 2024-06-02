@@ -18,6 +18,7 @@ echo "{\"token\":\"TOKEN\"}" > src/web-server/pat.json
 - Run the web server
 ```
 cd src/web-server
+npm install
 npm run start
 ```
 
@@ -28,6 +29,10 @@ ngrok http 80
 
 - Add the URL provided by ngrok to the Mender Integrations
     [Example](https://docs.mender.io/server-integration/webhooks)
+
+- Add a new device (qemu) and register the MAC address in the database
+
+- Check the server logs and Mender UI to check the device is accepted succesfully
 
 ## Notes
 - To query the DB
