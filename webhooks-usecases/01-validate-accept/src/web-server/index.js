@@ -22,7 +22,9 @@ const path = require("path");
 const helmet = require("helmet");
 const Ddos = require("ddos");
 const moment = require("moment");
+const axios = require("axios");
 const { exit } = require("process");
+const pat = require("./pat.json");
 
 const MODULE = "Basic Webhook Server";
 const BLOCKED_LIST = [".env", ".php", ".aspx", ".txt", "..", ".git", "config"];
@@ -137,15 +139,12 @@ server.use(
   })
 );
 server.use(ddos.express);
-server.use(staticFileMiddleware);
 server.use(bodyParser.json());
 server.use(bodyParser.urlencoded({ extended: true }));
 server.use(function (req, res, next) {
   res.setTimeout(150000, function () {
-    // time-out de 00:02:30
     Log("WARNING: Time-out", MODULE);
-    //res.sendStatus(408);
-    res.status(408);
+    res.status(408).send("timeout");
   });
   next();
 });
@@ -174,9 +173,15 @@ http
 // Read data from the webhook call
 server.post("*", function (req, res) {
     // Read the event information
-    if (req.body.type) {
-        Log(`Received: ${req.body.type}`, MODULE);
-        switch(req.body.type) {
+    const payload = req.body;
+    const headers = req.headers;
+
+    console.log(JSON.stringify(payload));
+    console.log(JSON.stringify(headers));
+
+    if (payload.type) {
+        Log(`Received: ${payload.type}`, MODULE);
+        switch(payload.type) {
             case "device-provisioned":
                 break;
             case "device-decommissioned":
@@ -189,8 +194,7 @@ server.post("*", function (req, res) {
     } else {
         Log(`WARNING: Type not received`, MODULE);
     }
-
-    res.status(200);
+    res.status(200).send("OK");
 });
   
 // Reject any other request

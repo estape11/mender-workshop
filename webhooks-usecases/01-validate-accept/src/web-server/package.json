@@ -10,6 +10,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^1.7.2",
     "ddos": "^0.2.1",
     "express": "^4.19.2",
     "express-force-ssl": "^0.3.2",
