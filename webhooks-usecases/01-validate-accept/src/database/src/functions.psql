@@ -1,0 +1,71 @@
+/*
+    estape11
+    Northern Tech 2024
+*/
+
+\c devices_administration
+
+CREATE OR REPLACE FUNCTION IsAValidDevice (
+    _MacAddr varchar
+)
+  RETURNS TABLE (
+    "Valid" boolean
+  )
+  AS $$
+DECLARE
+  valid boolean;
+BEGIN
+  IF EXISTS (
+    SELECT 
+      "Id"
+    FROM 
+      "Devices"
+    WHERE
+      "MacAddr" = _MacAddr AND "State" = TRUE AND "Blocked" = FALSE
+  ) THEN
+    valid := TRUE;
+  ELSE
+    valid := FALSE;
+  END IF;
+  RETURN QUERY
+  SELECT valid AS "Valid";
+END;
+$$
+LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION UpdateDevice (
+    _MacAddr varchar,
+    _MenderId varchar,
+    _PubKey varchar
+)
+  RETURNS TABLE (
+    "Success" boolean
+  )
+  AS $$
+DECLARE
+  success boolean;
+BEGIN
+  IF EXISTS (
+    SELECT 
+      "Id"
+    FROM 
+      "Devices"
+    WHERE
+      "MacAddr" = _MacAddr AND "State" = TRUE AND "Blocked" = FALSE
+  ) THEN
+    UPDATE
+      "Devices"
+    SET
+      "MenderId" = _MenderId,
+      "PubKey" = _PubKey
+    WHERE
+      "MacAddr" = _MacAddr;
+    success := TRUE;
+  ELSE
+    success := FALSE;
+  END IF;
+  RETURN QUERY
+  SELECT success AS "Success";
+END;
+$$
+LANGUAGE plpgsql;
