@@ -1,0 +1,21 @@
+/*
+    estape11
+    Northern Tech 2024
+*/
+
+CREATE DATABASE devices_administration;
+
+\c devices_administration
+ALTER DATABASE devices_administration SET timezone = 'UTC+6';
+
+CREATE TABLE "Devices" (
+    "Id" bigserial PRIMARY KEY,
+    "State" boolean DEFAULT TRUE,
+    "Blocked" boolean DEFAULT FALSE,
+    "MacAddr" varchar,
+    "MenderId" varchar,
+    "PubKey" varchar,
+    "Name" varchar
+);
+
+CREATE SEQUENCE DeviceCounter start 1 increment 1;

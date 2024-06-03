@@ -1,0 +1,8 @@
+/*
+    estape11
+    Northern Tech 2024
+*/
+
+\c devices_administration
+
+INSERT INTO "Devices" ("MacAddr") VALUES ('52:54:00:1e:dd:cb');
