@@ -5,4 +5,4 @@
 
 \c devices_administration
 
-INSERT INTO "Devices" ("MacAddr") VALUES ('52:54:00:1e:dd:cb');
+INSERT INTO "Devices" ("MacAddr") VALUES ('52:54:00:89:ed:32');
