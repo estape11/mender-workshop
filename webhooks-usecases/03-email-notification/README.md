@@ -1,4 +1,4 @@
-# Use-case: Notify via email when a device is accepted or decomissioned
+# Use-case: Notify via email when a device is accepted or decommissioned
 
 ## Goal
 We want to notify the administrator every time a device is provisioned and decommissioned in a email.

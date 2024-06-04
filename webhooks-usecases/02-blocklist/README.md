@@ -1,4 +1,4 @@
-# Use-case: Reject and decommising blocked devices
+# Use-case: Reject and decommissioning blocked devices
 
 ## Goal
 Even if a device is accepted in the UI, we can reject and dismiss it automatically if it is on the blocked list
