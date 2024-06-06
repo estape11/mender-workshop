@@ -73,6 +73,14 @@ tree /usr/share/mender/
 | | | | | |docker
 ```
 
+- List the `/usr/lib/mender-configure/` folder
+```
+tree /usr/lib/mender-configure/
+| | | |apply-device-config.d
+| | | | |mender-demo-raspberrypi-led
+| | | | |timezone
+```
+
 - Get the service status (mender-client 4.0 or later)
 ```
 systemctl status mender-authd
