@@ -24,3 +24,8 @@ docker run -it -p 85:85 -e SERVER_URL=$MENDER_URL \
 
 - Wait the device to boot and accept it when it reaches the Mender Server
 
+- Get the IP from the virtual devices
+```
+CONTAINER_ID=$(docker ps  | grep 'mender-client-qemu' | awk '{print $1}')
+IP_ADDRESS=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${CONTAINER_ID}")
+```
