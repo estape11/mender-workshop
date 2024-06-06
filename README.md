@@ -5,6 +5,7 @@
 - [docker](https://www.docker.com/)
 - [node/npm](https://nodejs.org/en)
 - [ngrok account](https://ngrok.com/) (to temporarily expose the server)
+- [mender-artifact](https://docs.mender.io/downloads#mender-artifact)
 
 ## Getting Started
 - [Create a mender-ready virtual device](mender-workshop/getting-started/00-create-virtual-device/README.md)
