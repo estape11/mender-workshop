@@ -9,6 +9,9 @@
 
 ## Getting Started
 - [Create a mender-ready virtual device](mender-workshop/getting-started/00-create-virtual-device/README.md)
+- [Generating and deployment of artifacts](mender-workshop/getting-started/01-generating-artifacts/README.md)
+- [Mender client overview](mender-workshop/getting-started/03-mender-client/README.md)
+- [Mender add-ons](mender-workshop/getting-started/04-addons/README.md)
 
 ## Webhooks use-cases
 - [Review the request data sent in the webhook call](webhooks-usecases/00-basic-event-receiver/README.md)
