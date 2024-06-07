@@ -29,3 +29,10 @@ docker run -it -p 85:85 -e SERVER_URL=$MENDER_URL \
 CONTAINER_ID=$(docker ps  | grep 'mender-client-qemu' | awk '{print $1}')
 IP_ADDRESS=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "${CONTAINER_ID}")
 ```
+
+- Alternative, we can create a container to run mender as an example
+```
+docker run -d --name mender-device --privileged -v /sys/fs/cgroup:/sys/fs/cgroup:rw --cgroupns=host jrei/systemd-ubuntu:20.04
+```
+
+- Follow the instructions from [here](https://docs.mender.io/client-installation/install-with-debian-package)
